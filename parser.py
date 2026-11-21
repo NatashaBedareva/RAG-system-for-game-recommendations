@@ -7,7 +7,8 @@ from selenium.webdriver.common.action_chains import ActionChains
 
 from datetime import datetime
 import sqlite3
-from db import add_data_to_db
+from db import add_data_to_db,close_db,start_db,commit_db
+
 import time
 
 def parser_card(driver):
@@ -28,7 +29,7 @@ def parser_card(driver):
     except Exception:
         print("Оценки нет")
 
-    grade_text = f"Средняя оценка: {grade_text}" if grade_text is not None else "Средняя оценка: нет"
+    grade_text = f"Средняя оценка: {grade_text} " if grade_text is not None else "Средняя оценка: нет. "
     
     about_game_block = WebDriverWait(driver, 15).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, "#about-game-description"))
@@ -112,5 +113,20 @@ def run_parser():
 
         button_next_page = driver.find_element(By.XPATH, '//*[@id="vkp-app-shell"]/div/main/div/div[3]/div/div[4]/button[2]')
         button_next_page.click()
+
+
+def main():
+        try:
+        start_db()
+        run_parser()
+    except Exception as e:
+        print(f"Парсер упал: {type(e).__name__}: {e}")
+    finally:
+        commit_db()
+        close_db()
+
+
+if __name__ == "__main__":
+    main()
 
 

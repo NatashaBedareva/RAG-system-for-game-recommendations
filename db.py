@@ -1,31 +1,30 @@
 import sqlite3
 from datetime import datetime
 
+
 DB_PATH = "DB_game_information"
-TABLE_NAME = "game_information"
 
 _conn = None
 _cursor = None
-
 
 def start_db():
     global _conn, _cursor
     _conn = sqlite3.connect(DB_PATH)
     _cursor = _conn.cursor()
-    clear_table()
 
 
-def clear_table():
-    _cursor.execute(f"DELETE FROM {TABLE_NAME}")
+
+def clear_table(table_name):
+    _cursor.execute(f"DELETE FROM {table_name}")
     _conn.commit()
 
 
-def add_data_to_db(game):
+def add_data_to_db(game,table_name):
 
     title = game[0]
 
     _cursor.execute(
-        f"SELECT 1 FROM {TABLE_NAME} WHERE title = ? LIMIT 1",
+        f"SELECT 1 FROM {table_name} WHERE title = ? LIMIT 1",
         (title,)
     )
     if _cursor.fetchone() is not None:
@@ -33,7 +32,7 @@ def add_data_to_db(game):
         return 
 
     _cursor.execute(
-        f"INSERT INTO {TABLE_NAME} (title, url, text, date) VALUES (?, ?, ?, ?)",
+        f"INSERT INTO {table_name} (title, url, text, date) VALUES (?, ?, ?, ?)",
         game
     )
     _conn.commit()
