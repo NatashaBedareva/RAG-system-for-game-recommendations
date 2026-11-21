@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>RAG Чат по играм</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, Segoe UI, Arial, sans-serif;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            background: #f5f5f7;
+        }
+        #chat-panel {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            border-right: 1px solid #ddd;
+        }
+        #sources-panel {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #fafafa;
+        }
+        h2 { margin-top: 0; font-size: 16px; color: #555; }
+        #chat {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid #e0e0e0;
+        }
+        .msg { margin-bottom: 14px; display: flex; }
+        .msg.user { justify-content: flex-end; }
+        .bubble {
+            max-width: 75%;
+            padding: 10px 14px;
+            border-radius: 14px;
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+        .user .bubble { background: #007aff; color: #fff; }
+        .bot .bubble { background: #eaeaea; color: #111; }
+        .bot.pending .bubble::after {
+            content: "…";
+            animation: dots 1s infinite;
+        }
+        @keyframes dots {
+            0%   { content: "…"; }
+            33%  { content: "……"; }
+            66%  { content: "………"; }
+        }
+        #input-area {
+            display: flex;
+            gap: 10px;
+            margin-top: 14px;
+        }
+        #question {
+            flex: 1;
+            padding: 12px;
+            font-size: 15px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            outline: none;
+        }
+        #question:focus { border-color: #007aff; }
+        button {
+            padding: 12px 22px;
+            font-size: 15px;
+            border: none;
+            border-radius: 10px;
+            background: #007aff;
+            color: #fff;
+            cursor: pointer;
+        }
+        button:disabled { background: #9bbddf; cursor: not-allowed; }
+        .source-card {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .source-card .title { font-weight: 600; margin-bottom: 4px; }
+        .source-card .score { color: #888; font-size: 12px; }
+        .source-card a { color: #007aff; word-break: break-all; }
+    </style>
+</head>
+<body>
+
+<div id="chat-panel">
+    <h2>🎮 Чат</h2>
+    <div id="chat"></div>
+    <div id="input-area">
+        <input id="question" placeholder="Посоветуй игру про рыбалку..." autocomplete="off">
+        <button id="send">Отправить</button>
+    </div>
+</div>
+
+<div id="sources-panel">
+    <h2>📚 Источники</h2>
+    <div id="sources"><em>Задайте вопрос — здесь появятся источники.</em></div>
+</div>
+
+<script>
+    const chatEl = document.getElementById('chat');
+    const sourcesEl = document.getElementById('sources');
+    const input = document.getElementById('question');
+    const sendBtn = document.getElementById('send');
+
+    function addMessage(role, text) {
+        const wrap = document.createElement('div');
+        wrap.className = `msg ${role}`;
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = text;
+        wrap.appendChild(bubble);
+        chatEl.appendChild(wrap);
+        chatEl.scrollTop = chatEl.scrollHeight;
+        return wrap;
+    }
+
+    function renderSources(sources) {
+        sourcesEl.innerHTML = '';
+        if (!sources || !sources.length) {
+            sourcesEl.innerHTML = '<em>Источников не найдено.</em>';
+            return;
+        }
+        sources.forEach(s => {
+            const card = document.createElement('div');
+            card.className = 'source-card';
+            card.innerHTML = `
+                <div class="title">${escapeHtml(s.title || 'Без названия')}</div>
+                <div class="score">score: ${Number(s.score).toFixed(3)}</div>
+                <div><a href="${s.url}" target="_blank" rel="noopener">${escapeHtml(s.url)}</a></div>
+            `;
+            sourcesEl.appendChild(card);
+        });
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    async function send() {
+        const question = input.value.trim();
+        if (!question) return;
+
+        input.value = '';
+        addMessage('user', question);
+
+        const pending = addMessage('bot pending', '');
+        sendBtn.disabled = true;
+
+        try {
+            const resp = await fetch('/ask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question }),
+            });
+            const data = await resp.json();
+            pending.remove();
+
+            if (!resp.ok) {
+                addMessage('bot', `Ошибка: ${data.error || resp.status}`);
+                renderSources([]);
+            } else {
+                addMessage('bot', data.answer);
+                renderSources(data.sources);
+            }
+        } catch (e) {
+            pending.remove();
+            addMessage('bot', `Сетевая ошибка: ${e.message}`);
+        } finally {
+            sendBtn.disabled = false;
+            input.focus();
+        }
+    }
+
+    sendBtn.addEventListener('click', send);
+    input.addEventListener('keypress', e => {
+        if (e.key === 'Enter') send();
+    });
+</script>
+</body>
+</html>

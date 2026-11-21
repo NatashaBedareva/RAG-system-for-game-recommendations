@@ -1,8 +1,14 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
+
 from search_and_answer import search_chunks, answer_model
 
 app = Flask(__name__)
 app.json.ensure_ascii = False
+
+@app.route("/")
+def index():
+    return render_template("chat.html")
+
 
 @app.route("/search")
 def search():
@@ -10,7 +16,6 @@ def search():
     if not q:
         return jsonify({"error": "Параметр q обязателен"}), 400
 
-    # N — сколько чанков вернуть (по умолчанию 5)
     try:
         n = int(request.args.get("n", 5))
     except ValueError:
@@ -18,7 +23,6 @@ def search():
 
     results = search_chunks(q, N=n)
 
-    # Приводим sqlite3.Row к обычному dict для JSON
     return jsonify([
         {
             "chunk_id": r["id"],
@@ -32,18 +36,21 @@ def search():
     ])
 
 
-@app.route("/ask")
-def ask():
-    q = request.args.get("q", "").strip()
-    if not q:
-        return jsonify({"error": "Параметр q обязателен"}), 400
 
-    # answer_model сейчас печатает ответ и ничего не возвращает.
-    # Нужно переделать её, чтобы она возвращала (answer, sources).
-    answer, sources = answer_model(q)
+@app.route("/ask", methods=["POST"])
+def ask():
+    data = request.get_json(silent=True) or {}
+    question = data.get("question", "").strip()
+    if not question:
+        return jsonify({"error": "Пустой вопрос"}), 400
+
+    try:
+        answer, sources = answer_model(question)
+    except Exception as e:
+        return jsonify({"error": f"{type(e).__name__}: {e}"}), 500
 
     return jsonify({
-        "question": q,
+        "question": question,
         "answer": answer,
         "sources": sources,
     })
